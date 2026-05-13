@@ -9,28 +9,34 @@ const startBtn = document.getElementById("startBtn");
 const container = document.getElementById("container");
 
 let cameraStarted = false;
+let backendURL = "http://192.168.1.15:8080";
 
 // OPEN CAMERA BUTTON
 startBtn.addEventListener("click", async () => {
 
     if (cameraStarted) return;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: true
-    });
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" }
+            },
+            audio: false
+        });
 
-    video.srcObject = stream;
+        video.srcObject = stream;
+        
+        video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        };
 
-    video.onloadedmetadata = () => {
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-    };
-
-    container.style.display = "block";
-
-    cameraStarted = true;
+        container.style.display = "block";
+        cameraStarted = true;
+        
+    } catch (error) {
+        alert("Camera access denied or not available: " + error.message);
+    }
 
 });
 
@@ -100,14 +106,26 @@ async function sendFrame() {
 
         formData.append("file", blob, "frame.jpg");
 
-        const res = await fetch("http://192.168.43.120:8000/detect", {
-            method: "POST",
-            body: formData
-        });
+        try {
+            const res = await fetch(backendURL + "/detect", {
+                method: "POST",
+                body: formData
+            });
 
-        const data = await res.json();
+            if (!res.ok) {
+                console.error("Backend error:", res.status);
+                return;
+            }
 
-        drawBoxes(data.detections);
+            const data = await res.json();
+
+            if (data.detections) {
+                drawBoxes(data.detections);
+            }
+
+        } catch (error) {
+            console.error("Error connecting to backend:", error);
+        }
 
     }, "image/jpeg");
 
