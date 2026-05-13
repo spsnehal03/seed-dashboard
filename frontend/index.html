@@ -12,12 +12,13 @@
             --primary: #2d5016;
             --primary-light: #4c8c2b;
             --accent: #1e3a8a;
-            --bg-dark: #0f172a;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --papaya: #4ade80;
-            --pepper: #f87171;
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
+            --bg-pearl: #f0f4f8;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --papaya: #166534;
+            --pepper: #991b1b;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --glass-border: rgba(255, 255, 255, 0.5);
         }
 
         * {
@@ -28,10 +29,11 @@
         }
 
         body {
-            background-color: var(--bg-dark);
+            background-color: var(--bg-pearl);
             background-image: 
-                radial-gradient(at 0% 0%, rgba(45, 80, 22, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(30, 58, 138, 0.15) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.8) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(226, 232, 240, 0.5) 0px, transparent 50%),
+                url("https://www.transparenttextures.com/patterns/cubes.png"); /* Subtle pearl texture */
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
@@ -40,14 +42,15 @@
 
         /* Header & Branding */
         header {
-            padding: 2rem 1rem;
+            padding: 1.5rem 1rem;
             text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(10px);
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         }
 
         .brand-group {
@@ -55,7 +58,7 @@
             align-items: center;
             justify-content: center;
             gap: 0.75rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
         }
 
         .logo-icon {
@@ -66,28 +69,28 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 20px rgba(45, 80, 22, 0.4);
+            box-shadow: 0 4px 12px rgba(45, 80, 22, 0.2);
         }
 
         .company-name {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 700;
-            letter-spacing: 2px;
-            color: var(--primary-light);
+            letter-spacing: 1.5px;
+            color: var(--primary);
             text-transform: uppercase;
         }
 
         .project-title {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-dim);
-            font-weight: 400;
+            font-weight: 500;
         }
 
         /* Main Dashboard */
         main {
             flex: 1;
-            padding: 1.5rem;
-            max-width: 1000px;
+            padding: 1.25rem;
+            max-width: 800px;
             margin: 0 auto;
             width: 100%;
         }
@@ -96,28 +99,30 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
-            background: var(--card-bg);
-            padding: 0.75rem 1.25rem;
+            margin-bottom: 1rem;
+            background: white;
+            padding: 0.6rem 1rem;
             border-radius: 100px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
         }
 
         .status-indicator {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
 
         .dot {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            background: #64748b;
+            background: #cbd5e1;
         }
 
-        .dot.online { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .dot.online { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
         .dot.offline { background: #ef4444; }
 
         /* Stats Cards */
@@ -129,58 +134,44 @@
         }
 
         .stat-card {
-            background: var(--card-bg);
+            background: white;
             padding: 1.25rem;
             border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.05);
             text-align: left;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.3s ease;
-        }
-
-        .stat-card:active { transform: scale(0.98); }
-
-        .stat-card::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 60px;
-            height: 60px;
-            background: currentColor;
-            opacity: 0.05;
-            border-radius: 0 0 0 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease;
         }
 
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-dim);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
             display: block;
+            font-weight: 600;
         }
 
         .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
+            font-size: 2.25rem;
+            font-weight: 800;
             line-height: 1;
         }
 
-        .stat-card.papaya { color: var(--papaya); border-left: 4px solid var(--papaya); }
-        .stat-card.pepper { color: var(--pepper); border-left: 4px solid var(--pepper); }
+        .stat-card.papaya { color: #15803d; border-top: 4px solid #22c55e; }
+        .stat-card.pepper { color: #b91c1c; border-top: 4px solid #ef4444; }
 
         /* Camera Viewport */
         .viewport-container {
             position: relative;
             width: 100%;
             aspect-ratio: 4/3;
-            background: #000;
+            background: #f1f5f9;
             border-radius: 24px;
             overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.1);
+            border: 4px solid white;
         }
 
         video {
@@ -203,7 +194,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
             z-index: 10;
             transition: opacity 0.5s ease;
         }
@@ -215,100 +207,108 @@
 
         /* Controls */
         .controls {
-            padding: 2rem 1.5rem;
+            padding: 1.5rem 1.5rem;
             display: flex;
             flex-direction: column;
             gap: 1rem;
         }
 
         .btn {
-            padding: 1rem 2rem;
-            border-radius: 16px;
+            padding: 0.85rem 1.75rem;
+            border-radius: 14px;
             border: none;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
-            font-size: 1rem;
+            font-size: 0.95rem;
         }
 
         .btn-primary {
             background: var(--primary);
             color: white;
-            box-shadow: 0 8px 20px rgba(45, 80, 22, 0.3);
+            box-shadow: 0 4px 15px rgba(45, 80, 22, 0.25);
         }
 
         .btn-primary:hover {
             background: var(--primary-light);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(45, 80, 22, 0.3);
         }
 
         .btn-outline {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: white;
+            border: 1px solid rgba(0, 0, 0, 0.1);
             color: var(--text-dim);
         }
 
         .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
+            background: #f8fafc;
+            color: var(--text-main);
+            border-color: rgba(0, 0, 0, 0.2);
         }
 
         /* Settings Modal */
         #settingsModal {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px);
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
             z-index: 1000;
             display: none;
             align-items: center;
             justify-content: center;
-            padding: 2rem;
+            padding: 1.5rem;
         }
 
         .modal-content {
-            background: #1e293b;
+            background: white;
             width: 100%;
-            max-width: 400px;
+            max-width: 380px;
             padding: 2rem;
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
         }
 
         .modal-title {
             font-size: 1.25rem;
-            margin-bottom: 1.5rem;
-            font-weight: 600;
+            margin-bottom: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
         }
 
         label {
             display: block;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--text-dim);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-weight: 600;
         }
 
         input {
             width: 100%;
-            background: rgba(0,0,0,0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0.75rem 1rem;
+            background: #f1f5f9;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 0.8rem 1rem;
             border-radius: 12px;
-            color: white;
-            font-size: 1rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-weight: 500;
         }
 
         input:focus {
             outline: none;
             border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(45, 80, 22, 0.1);
         }
 
         @media (max-width: 480px) {
@@ -373,10 +373,13 @@
     <div class="modal-content">
         <h3 class="modal-title">System Settings</h3>
         <div class="form-group">
-            <label>Backend Host IP (e.g. 192.168.1.15)</label>
-            <input type="text" id="hostInput" placeholder="192.168.1.15">
+            <label>Backend Host / URL</label>
+            <input type="text" id="hostInput" placeholder="e.g. 192.168.1.15 or https://xyz.ngrok.app">
+            <p style="font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem;">
+                💡 <b>Tip:</b> If hosted on Vercel, use an <b>https://</b> URL from ngrok to avoid security blocks.
+            </p>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="portGroup">
             <label>Backend Port</label>
             <input type="number" id="portInput" value="8000">
         </div>

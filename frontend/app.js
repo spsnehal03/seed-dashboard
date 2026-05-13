@@ -37,7 +37,18 @@ function updateStatus(online, message) {
 }
 
 function getBackendURL() {
-    return `http://${state.backendHost}:${state.backendPort}`;
+    let host = state.backendHost.trim();
+    // Remove trailing slash if present
+    if (host.endsWith('/')) {
+        host = host.slice(0, -1);
+    }
+    
+    // If it's a full URL (like Hugging Face or ngrok)
+    if (host.startsWith('http')) {
+        return host;
+    }
+    // Fallback to local IP
+    return `http://${host}:${state.backendPort}`;
 }
 
 // --- CAMERA LOGIC ---
