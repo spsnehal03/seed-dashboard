@@ -7,6 +7,10 @@ let state = {
     lastDetections: []
 };
 
+// FORCE KILL DEMO MODE FOREVER
+localStorage.removeItem('demoMode');
+state.demoMode = false;
+
 // DOM Elements
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -104,15 +108,20 @@ function drawOverlay(detections) {
         if (isPapaya) counts.papaya++;
         else counts.pepper++;
 
-        // Draw Bounding Box
+        // Draw Bounding Box (Thinner for precision)
         ctx.strokeStyle = color;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 2;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Label
+        // Draw center dot
         ctx.fillStyle = color;
-        ctx.font = "bold 16px Outfit";
-        ctx.fillText(`${obj.class} ${Math.round(obj.confidence * 100)}%`, x1, y1 - 10);
+        ctx.beginPath();
+        ctx.arc(x1 + (x2-x1)/2, y1 + (y2-y1)/2, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Small Label
+        ctx.font = "600 12px Outfit";
+        ctx.fillText(`${obj.class}`, x1, y1 - 5);
     });
 
     papayaCountEl.innerText = counts.papaya;
