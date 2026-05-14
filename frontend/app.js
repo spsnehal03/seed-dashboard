@@ -44,6 +44,11 @@ function getBackendURL() {
     let host = state.backendHost.trim();
     if (host.endsWith('/')) host = host.slice(0, -1);
     
+    // Auto-fix for Hugging Face (Must be https)
+    if (host.includes('hf.space') && !host.startsWith('https')) {
+        host = 'https://' + host.replace('http://', '');
+    }
+    
     if (host.startsWith('http')) return host;
     return `http://${host}:${state.backendPort}`;
 }
