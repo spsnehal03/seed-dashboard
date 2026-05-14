@@ -165,8 +165,7 @@ async function processFrame() {
             const data = await res.json();
             if (data.detections) {
                 drawOverlay(data.detections);
-                const count = data.debug_count !== undefined ? data.debug_count : data.detections.length;
-                updateStatus(true, `Scanning... (Found: ${count})`);
+                updateStatus(true, `Live Scanning... (${data.detections.length} found)`);
             }
         } catch (error) {
             console.error("Inference Error:", error);
