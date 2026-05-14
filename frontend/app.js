@@ -49,9 +49,9 @@ function getBackendURL() {
 }
 
 async function checkConnection() {
-    const url = getBackendURL();
+    const host = getBackendURL();
     try {
-        const res = await fetch(url + "/");
+        const res = await fetch(host + "/", { cache: "no-cache" });
         if (res.ok) {
             updateStatus(true, "System Online & Ready");
         } else {
@@ -145,7 +145,8 @@ async function processFrame() {
         try {
             const res = await fetch(url, {
                 method: "POST",
-                body: formData
+                body: formData,
+                cache: "no-cache"
             });
 
             if (!res.ok) throw new Error("Backend Error");
@@ -187,7 +188,7 @@ saveSettings.addEventListener("click", () => {
 });
 
 // Run detection loop
-setInterval(processFrame, 400); // ~2.5 FPS for smoothness vs performance
+setInterval(processFrame, 1000); // 1.0 FPS for maximum stability on free hosting
 
 // Initial Check
 checkConnection();
