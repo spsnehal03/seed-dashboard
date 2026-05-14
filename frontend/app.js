@@ -106,26 +106,29 @@ function drawOverlay(detections) {
 
     detections.forEach(obj => {
         const [x1, y1, x2, y2] = obj.bbox;
-        const label = obj.class.toLowerCase();
-        const isPapaya = label.includes("papaya");
+        const rawLabel = (obj.class || "").toLowerCase();
+        
+        // If it's ID 0 OR the name contains 'papaya', it's Papaya
+        const isPapaya = (obj.class_id === 0 || rawLabel.includes("papaya") || rawLabel.includes("class0"));
         const color = isPapaya ? "#22c55e" : "#ef4444"; 
         
         if (isPapaya) counts.papaya++;
         else counts.pepper++;
 
-        // Draw Bounding Box (Thicker and Darker)
+        // EXTRA THICK BOX
         ctx.strokeStyle = color;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 6;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw Label Background
+        // BIG VISIBLE LABEL
         ctx.fillStyle = color;
-        ctx.fillRect(x1, y1 - 25, 80, 25);
-
-        // White Text for contrast
+        const labelText = isPapaya ? "PAPAYA" : "PEPPER";
+        ctx.font = "bold 20px Outfit";
+        const textWidth = ctx.measureText(labelText).width;
+        
+        ctx.fillRect(x1, y1 - 30, textWidth + 10, 30);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 14px Outfit";
-        ctx.fillText(`${obj.class}`, x1 + 5, y1 - 7);
+        ctx.fillText(labelText, x1 + 5, y1 - 8);
     });
 
     papayaCountEl.innerText = counts.papaya;
