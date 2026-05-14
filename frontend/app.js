@@ -49,17 +49,16 @@ function getBackendURL() {
 }
 
 async function checkConnection() {
-    updateStatus(false, "Checking Connection...");
+    const url = getBackendURL();
     try {
-        const url = getBackendURL();
         const res = await fetch(url + "/");
         if (res.ok) {
-            updateStatus(true, "System Ready");
+            updateStatus(true, "System Online & Ready");
         } else {
             updateStatus(false, "Backend Error: " + res.status);
         }
     } catch (e) {
-        updateStatus(false, "Unreachable: Check URL Protocol");
+        updateStatus(false, "Backend Offline - Wake up Space");
     }
 }
 
