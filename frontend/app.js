@@ -161,7 +161,7 @@ async function processFrame() {
             }
         } catch (error) {
             console.error("Inference Error:", error);
-            updateStatus(false, "Backend Unreachable");
+            updateStatus(false, "Error: " + error.message);
         }
     }, "image/jpeg", 0.7); // 0.7 quality to save bandwidth
 }
