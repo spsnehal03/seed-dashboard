@@ -36,8 +36,8 @@ async def detect(file: UploadFile = File(...)):
     if frame is None:
         return {"error": "Could not decode image", "detections": []}
     
-    # Run YOLO prediction
-    results = model.predict(frame, conf=0.25)
+    # Run YOLO prediction with lower threshold for better sensitivity
+    results = model.predict(frame, conf=0.1)
     
     detections = []
     for box in results[0].boxes:
@@ -52,4 +52,5 @@ async def detect(file: UploadFile = File(...)):
             "confidence": confidence
         })
     
+    print(f"Detected {len(detections)} seeds") # This will show in HF Logs
     return {"detections": detections}
