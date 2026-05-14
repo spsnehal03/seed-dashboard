@@ -55,10 +55,10 @@ async function checkConnection() {
         if (res.ok) {
             updateStatus(true, "System Online & Ready");
         } else {
-            updateStatus(false, "Backend Error: " + res.status);
+            updateStatus(false, "Server Error: " + res.status);
         }
     } catch (e) {
-        updateStatus(false, "Backend Offline - Wake up Space");
+        updateStatus(false, "Connection Fail: " + e.message);
     }
 }
 
