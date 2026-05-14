@@ -3,7 +3,6 @@ let state = {
     cameraStarted: false,
     backendHost: localStorage.getItem('backendHost') || '192.168.1.15',
     backendPort: localStorage.getItem('backendPort') || '8000',
-    demoMode: localStorage.getItem('demoMode') === 'true',
     isOnline: false,
     lastDetections: []
 };
@@ -22,14 +21,12 @@ const settingsBtn = document.getElementById("settingsBtn");
 const settingsModal = document.getElementById("settingsModal");
 const hostInput = document.getElementById("hostInput");
 const portInput = document.getElementById("portInput");
-const demoModeInput = document.getElementById("demoModeInput");
 const saveSettings = document.getElementById("saveSettings");
 const closeSettings = document.getElementById("closeSettings");
 
 // Initialize Settings
 hostInput.value = state.backendHost;
 portInput.value = state.backendPort;
-demoModeInput.checked = state.demoMode;
 
 // --- UTILITIES ---
 
@@ -94,14 +91,6 @@ async function initCamera() {
 // --- DETECTION & DRAWING ---
 
 function drawOverlay(detections) {
-    // If no detections this time, don't clear immediately to prevent flickering
-    if (detections.length === 0 && state.lastDetections.length > 0) {
-        // Keep the old boxes for 3 more frames
-        state.fadeOutCounter = (state.fadeOutCounter || 0) + 1;
-        if (state.fadeOutCounter < 5) return; 
-    }
-    
-    state.fadeOutCounter = 0;
     state.lastDetections = detections;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -110,7 +99,7 @@ function drawOverlay(detections) {
     detections.forEach(obj => {
         const [x1, y1, x2, y2] = obj.bbox;
         const isPapaya = obj.class === "papaya";
-        const color = isPapaya ? "#4ade80" : "#f87171";
+        const color = isPapaya ? "#22c55e" : "#ef4444"; // Green for Papaya, Red for Pepper
         
         if (isPapaya) counts.papaya++;
         else counts.pepper++;
@@ -118,46 +107,20 @@ function drawOverlay(detections) {
         // Draw Bounding Box
         ctx.strokeStyle = color;
         ctx.lineWidth = 4;
-        ctx.lineJoin = "round";
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw Label Background
+        // Label
         ctx.fillStyle = color;
-        const label = `${obj.class} ${Math.round(obj.confidence * 100)}%`;
-        const labelWidth = ctx.measureText(label).width + 10;
-        ctx.fillRect(x1, y1 - 25, labelWidth, 25);
-
-        // Draw Label Text
-        ctx.fillStyle = "#000";
-        ctx.font = "600 14px Outfit";
-        ctx.fillText(label, x1 + 5, y1 - 7);
+        ctx.font = "bold 16px Outfit";
+        ctx.fillText(`${obj.class} ${Math.round(obj.confidence * 100)}%`, x1, y1 - 10);
     });
 
-    // Update Counts with animation feel
     papayaCountEl.innerText = counts.papaya;
     pepperCountEl.innerText = counts.pepper;
 }
 
 async function processFrame() {
     if (!state.cameraStarted || video.readyState < 2) return;
-
-    if (state.demoMode) {
-        // SIMULATED DETECTION FOR DEMO
-        const simulated = [];
-        const count = Math.floor(Math.random() * 5) + 3;
-        for(let i=0; i<count; i++) {
-            const x = 100 + Math.random() * 300;
-            const y = 100 + Math.random() * 200;
-            simulated.push({
-                bbox: [x, y, x+40, y+40],
-                class: Math.random() > 0.5 ? "papaya" : "pepper",
-                confidence: 0.8 + Math.random() * 0.15
-            });
-        }
-        drawOverlay(simulated);
-        updateStatus(true, `Demo Mode: Active (Found: ${simulated.length})`);
-        return;
-    }
 
     // REAL DETECTION
     const offscreenCanvas = document.createElement("canvas");
@@ -207,11 +170,9 @@ closeSettings.addEventListener("click", () => {
 saveSettings.addEventListener("click", () => {
     state.backendHost = hostInput.value.trim();
     state.backendPort = portInput.value.trim();
-    state.demoMode = demoModeInput.checked;
     
     localStorage.setItem('backendHost', state.backendHost);
     localStorage.setItem('backendPort', state.backendPort);
-    localStorage.setItem('demoMode', state.demoMode);
     
     settingsModal.style.display = "none";
     checkConnection();
