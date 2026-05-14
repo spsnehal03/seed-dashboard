@@ -94,6 +94,15 @@ async function initCamera() {
 // --- DETECTION & DRAWING ---
 
 function drawOverlay(detections) {
+    // If no detections this time, don't clear immediately to prevent flickering
+    if (detections.length === 0 && state.lastDetections.length > 0) {
+        // Keep the old boxes for 3 more frames
+        state.fadeOutCounter = (state.fadeOutCounter || 0) + 1;
+        if (state.fadeOutCounter < 5) return; 
+    }
+    
+    state.fadeOutCounter = 0;
+    state.lastDetections = detections;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     let counts = { papaya: 0, pepper: 0 };
