@@ -140,14 +140,11 @@ async function processFrame() {
         const formData = new FormData();
         formData.append("file", blob, "frame.jpg");
 
+        const url = `${getBackendURL()}/detect`;
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s
-
-            const res = await fetch(`${getBackendURL()}/detect`, {
+            const res = await fetch(url, {
                 method: "POST",
-                body: formData,
-                signal: controller.signal
+                body: formData
             });
 
             clearTimeout(timeoutId);
@@ -161,7 +158,7 @@ async function processFrame() {
             }
         } catch (error) {
             console.error("Inference Error:", error);
-            updateStatus(false, "Error: " + error.message);
+            updateStatus(false, "Error: " + error.message + " | URL: " + url);
         }
     }, "image/jpeg", 0.7); // 0.7 quality to save bandwidth
 }
