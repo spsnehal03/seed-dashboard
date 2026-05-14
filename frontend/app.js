@@ -147,8 +147,6 @@ async function processFrame() {
                 body: formData
             });
 
-            clearTimeout(timeoutId);
-
             if (!res.ok) throw new Error("Backend Error");
 
             const data = await res.json();
