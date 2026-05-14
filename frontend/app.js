@@ -3,6 +3,7 @@ let state = {
     cameraStarted: false,
     backendHost: localStorage.getItem('backendHost') || '192.168.1.15',
     backendPort: localStorage.getItem('backendPort') || '8000',
+    demoMode: localStorage.getItem('demoMode') === 'true',
     isOnline: false,
     lastDetections: []
 };
@@ -21,12 +22,14 @@ const settingsBtn = document.getElementById("settingsBtn");
 const settingsModal = document.getElementById("settingsModal");
 const hostInput = document.getElementById("hostInput");
 const portInput = document.getElementById("portInput");
+const demoModeInput = document.getElementById("demoModeInput");
 const saveSettings = document.getElementById("saveSettings");
 const closeSettings = document.getElementById("closeSettings");
 
 // Initialize Settings
 hostInput.value = state.backendHost;
 portInput.value = state.backendPort;
+demoModeInput.checked = state.demoMode;
 
 // --- UTILITIES ---
 
@@ -129,7 +132,25 @@ function drawOverlay(detections) {
 async function processFrame() {
     if (!state.cameraStarted || video.readyState < 2) return;
 
-    // Create frame blob
+    if (state.demoMode) {
+        // SIMULATED DETECTION FOR DEMO
+        const simulated = [];
+        const count = Math.floor(Math.random() * 5) + 3;
+        for(let i=0; i<count; i++) {
+            const x = 100 + Math.random() * 300;
+            const y = 100 + Math.random() * 200;
+            simulated.push({
+                bbox: [x, y, x+40, y+40],
+                class: Math.random() > 0.5 ? "papaya" : "pepper",
+                confidence: 0.8 + Math.random() * 0.15
+            });
+        }
+        drawOverlay(simulated);
+        updateStatus(true, `Demo Mode: Active (Found: ${simulated.length})`);
+        return;
+    }
+
+    // REAL DETECTION
     const offscreenCanvas = document.createElement("canvas");
     offscreenCanvas.width = video.videoWidth;
     offscreenCanvas.height = video.videoHeight;
@@ -177,9 +198,11 @@ closeSettings.addEventListener("click", () => {
 saveSettings.addEventListener("click", () => {
     state.backendHost = hostInput.value.trim();
     state.backendPort = portInput.value.trim();
+    state.demoMode = demoModeInput.checked;
     
     localStorage.setItem('backendHost', state.backendHost);
     localStorage.setItem('backendPort', state.backendPort);
+    localStorage.setItem('demoMode', state.demoMode);
     
     settingsModal.style.display = "none";
     checkConnection();
