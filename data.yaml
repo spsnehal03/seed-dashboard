@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['Black_pepper', 'papaya_seed']
+
+roboflow:
+  workspace: padmaja-utmzk
+  project: black_pepper-i9sma
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/padmaja-utmzk/black_pepper-i9sma/dataset/1
