@@ -106,29 +106,28 @@ function drawOverlay(detections) {
 
     detections.forEach(obj => {
         const [x1, y1, x2, y2] = obj.bbox;
-        const rawLabel = (obj.class || "").toLowerCase();
+        const name = (obj.class || "Seed").toLowerCase();
         
-        // If it's ID 0 OR the name contains 'papaya', it's Papaya
-        const isPapaya = (obj.class_id === 0 || rawLabel.includes("papaya") || rawLabel.includes("class0"));
-        const color = isPapaya ? "#22c55e" : "#ef4444"; 
+        // Match exactly what the model says
+        const isPapaya = name.includes("papaya");
+        const isPepper = name.includes("pepper");
+        const color = isPapaya ? "#22c55e" : (isPepper ? "#ef4444" : "#f59e0b"); 
         
         if (isPapaya) counts.papaya++;
-        else counts.pepper++;
+        else if (isPepper) counts.pepper++;
 
-        // EXTRA THICK BOX
+        // Draw Box
         ctx.strokeStyle = color;
-        ctx.lineWidth = 6;
+        ctx.lineWidth = 5;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // BIG VISIBLE LABEL
+        // Draw Label
         ctx.fillStyle = color;
-        const labelText = isPapaya ? "PAPAYA" : "PEPPER";
-        ctx.font = "bold 20px Outfit";
-        const textWidth = ctx.measureText(labelText).width;
-        
-        ctx.fillRect(x1, y1 - 30, textWidth + 10, 30);
+        const labelText = name.toUpperCase();
+        ctx.font = "bold 18px Outfit";
+        ctx.fillRect(x1, y1 - 25, ctx.measureText(labelText).width + 10, 25);
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(labelText, x1 + 5, y1 - 8);
+        ctx.fillText(labelText, x1 + 5, y1 - 7);
     });
 
     papayaCountEl.innerText = counts.papaya;
