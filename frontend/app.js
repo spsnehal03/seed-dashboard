@@ -1,15 +1,15 @@
 // State Management
 let state = {
     cameraStarted: false,
-    backendHost: localStorage.getItem('backendHost') || '192.168.1.15',
-    backendPort: localStorage.getItem('backendPort') || '8000',
-    isOnline: false,
+    backendHost: 'snehal003-seed-detection-api.hf.space',
+    backendPort: '8000',
+    isOnline: true, // Force online for the demo
     lastDetections: []
 };
 
-// FORCE KILL DEMO MODE FOREVER
-localStorage.removeItem('demoMode');
-state.demoMode = false;
+function getBackendURL() {
+    return "https://snehal003-seed-detection-api.hf.space";
+}
 
 // DOM Elements
 const video = document.getElementById("video");
