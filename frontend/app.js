@@ -106,26 +106,26 @@ function drawOverlay(detections) {
 
     detections.forEach(obj => {
         const [x1, y1, x2, y2] = obj.bbox;
-        const isPapaya = obj.class === "papaya";
-        const color = isPapaya ? "#22c55e" : "#ef4444"; // Green for Papaya, Red for Pepper
+        const label = obj.class.toLowerCase();
+        const isPapaya = label.includes("papaya");
+        const color = isPapaya ? "#22c55e" : "#ef4444"; 
         
         if (isPapaya) counts.papaya++;
         else counts.pepper++;
 
-        // Draw Bounding Box (Thinner for precision)
+        // Draw Bounding Box (Thicker and Darker)
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw center dot
+        // Draw Label Background
         ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x1 + (x2-x1)/2, y1 + (y2-y1)/2, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(x1, y1 - 25, 80, 25);
 
-        // Small Label
-        ctx.font = "600 12px Outfit";
-        ctx.fillText(`${obj.class}`, x1, y1 - 5);
+        // White Text for contrast
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 14px Outfit";
+        ctx.fillText(`${obj.class}`, x1 + 5, y1 - 7);
     });
 
     papayaCountEl.innerText = counts.papaya;
@@ -134,6 +134,10 @@ function drawOverlay(detections) {
 
 async function processFrame() {
     if (!state.cameraStarted || video.readyState < 2) return;
+
+    // Force alignment
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
     // REAL DETECTION
     const offscreenCanvas = document.createElement("canvas");
