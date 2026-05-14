@@ -165,13 +165,13 @@ async function processFrame() {
             const data = await res.json();
             if (data.detections) {
                 drawOverlay(data.detections);
-                updateStatus(true, `Live Scanning... (${data.detections.length} found)`);
+                updateStatus(true, `Detection Active (${data.detections.length})`);
             }
         } catch (error) {
             console.error("Inference Error:", error);
             updateStatus(false, "Error: " + error.message + " | URL: " + url);
         }
-    }, "image/jpeg", 0.7); // 0.7 quality to save bandwidth
+    }, "image/jpeg", 0.5); // 0.5 quality for faster upload
 }
 
 // --- EVENT LISTENERS ---
@@ -198,7 +198,7 @@ saveSettings.addEventListener("click", () => {
 });
 
 // Run detection loop
-setInterval(processFrame, 1000); // 1.0 FPS for maximum stability on free hosting
+setInterval(processFrame, 500); // 2 FPS for better real-time feel
 
 // Initial Check
 checkConnection();
