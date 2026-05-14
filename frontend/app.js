@@ -38,17 +38,25 @@ function updateStatus(online, message) {
 
 function getBackendURL() {
     let host = state.backendHost.trim();
-    // Remove trailing slash if present
-    if (host.endsWith('/')) {
-        host = host.slice(0, -1);
-    }
+    if (host.endsWith('/')) host = host.slice(0, -1);
     
-    // If it's a full URL (like Hugging Face or ngrok)
-    if (host.startsWith('http')) {
-        return host;
-    }
-    // Fallback to local IP
+    if (host.startsWith('http')) return host;
     return `http://${host}:${state.backendPort}`;
+}
+
+async function checkConnection() {
+    updateStatus(false, "Checking Connection...");
+    try {
+        const url = getBackendURL();
+        const res = await fetch(url + "/");
+        if (res.ok) {
+            updateStatus(true, "System Ready");
+        } else {
+            updateStatus(false, "Backend Error: " + res.status);
+        }
+    } catch (e) {
+        updateStatus(false, "Unreachable: Check URL Protocol");
+    }
 }
 
 // --- CAMERA LOGIC ---
@@ -178,8 +186,11 @@ saveSettings.addEventListener("click", () => {
     localStorage.setItem('backendPort', state.backendPort);
     
     settingsModal.style.display = "none";
-    updateStatus(false, "Settings Updated");
+    checkConnection();
 });
 
 // Run detection loop
 setInterval(processFrame, 400); // ~2.5 FPS for smoothness vs performance
+
+// Initial Check
+checkConnection();
