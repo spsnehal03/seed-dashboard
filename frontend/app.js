@@ -3,6 +3,7 @@ let state = {
     cameraStarted: false,
     backendHost: 'snehal003-seed-detection-api.hf.space',
     isOnline: true,
+    isProcessing: false, // LOCK to prevent lag
     lastDetections: []
 };
 
@@ -29,7 +30,7 @@ function updateStatus(online, message) {
 async function initCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 640 } },
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false
         });
         video.srcObject = stream;
@@ -38,7 +39,7 @@ async function initCamera() {
         document.getElementById("cameraOverlay").classList.add("hidden");
         state.cameraStarted = true;
         
-        // Match canvas to video exactly
+        // Match canvas exactly
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
@@ -61,15 +62,18 @@ function drawOverlay(detections) {
         if (isPapaya) counts.papaya++;
         else counts.pepper++;
 
-        // Draw Box
+        // Draw Thick Visible Box
         ctx.strokeStyle = color;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 6;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw Label
+        // Draw Label with Background
         ctx.fillStyle = color;
-        ctx.font = "bold 16px Outfit";
-        ctx.fillText(name.toUpperCase(), x1, y1 - 5);
+        const labelText = name.toUpperCase();
+        ctx.font = "bold 18px Outfit";
+        ctx.fillRect(x1, y1 - 25, ctx.measureText(labelText).width + 10, 25);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(labelText, x1 + 5, y1 - 7);
     });
 
     papayaCountEl.innerText = counts.papaya;
@@ -77,9 +81,16 @@ function drawOverlay(detections) {
 }
 
 async function processFrame() {
-    if (!state.cameraStarted || video.readyState < 2) return;
+    if (!state.cameraStarted || video.readyState < 2 || state.isProcessing) return;
 
-    // Send whole frame
+    state.isProcessing = true; // LOCK
+    
+    // Ensure canvas matches video size perfectly
+    if (canvas.width !== video.videoWidth) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+    }
+
     const offCanvas = document.createElement("canvas");
     offCanvas.width = video.videoWidth;
     offCanvas.height = video.videoHeight;
@@ -94,11 +105,16 @@ async function processFrame() {
             const data = await res.json();
             if (data.detections) {
                 drawOverlay(data.detections);
-                updateStatus(true, `Found: ${data.detections.length}`);
+                updateStatus(true, `Detection Active (${data.detections.length})`);
             }
-        } catch (e) {}
-    }, "image/jpeg", 0.6);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            state.isProcessing = false; // UNLOCK
+        }
+    }, "image/jpeg", 0.5);
 }
 
 startBtn.addEventListener("click", initCamera);
-setInterval(processFrame, 700);
+// Run scanning as fast as the server can handle
+setInterval(processFrame, 100); 
