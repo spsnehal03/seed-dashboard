@@ -47,10 +47,12 @@ async function initCamera() {
         // Force play immediately for mobile browsers
         await video.play();
         
+        const cameraOverlay = document.getElementById("cameraOverlay");
+        cameraOverlay.classList.add("hidden");
+        
         state.cameraStarted = true;
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        startBtn.style.display = "none";
         updateStatus(true, "Camera Active & Scanning");
     } catch (err) {
         console.error("Camera Error:", err);
