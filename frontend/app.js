@@ -3,7 +3,7 @@ let state = {
     cameraStarted: false,
     backendHost: 'snehal003-seed-detection-api.hf.space',
     backendPort: '8000',
-    isOnline: true, // Force online for the demo
+    isOnline: true,
     lastDetections: []
 };
 
@@ -15,56 +15,18 @@ function getBackendURL() {
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-const papayaCountEl = document.getElementById("papayaCount");
-const pepperCountEl = document.getElementById("pepperCount");
 const startBtn = document.getElementById("startBtn");
-const cameraOverlay = document.getElementById("cameraOverlay");
 const statusDot = document.getElementById("statusDot");
 const statusText = document.getElementById("statusText");
-const settingsBtn = document.getElementById("settingsBtn");
-const settingsModal = document.getElementById("settingsModal");
-const hostInput = document.getElementById("hostInput");
-const portInput = document.getElementById("portInput");
-const saveSettings = document.getElementById("saveSettings");
-const closeSettings = document.getElementById("closeSettings");
-
-// Initialize Settings
-hostInput.value = state.backendHost;
-portInput.value = state.backendPort;
+const papayaCountEl = document.getElementById("papayaCount");
+const pepperCountEl = document.getElementById("pepperCount");
 
 // --- UTILITIES ---
 
 function updateStatus(online, message) {
     state.isOnline = online;
     statusDot.className = `dot ${online ? 'online' : 'offline'}`;
-    statusText.innerText = message || (online ? "Backend Online" : "Backend Offline");
-}
-
-function getBackendURL() {
-    let host = state.backendHost.trim();
-    if (host.endsWith('/')) host = host.slice(0, -1);
-    
-    // Auto-fix for Hugging Face (Must be https)
-    if (host.includes('hf.space') && !host.startsWith('https')) {
-        host = 'https://' + host.replace('http://', '');
-    }
-    
-    if (host.startsWith('http')) return host;
-    return `http://${host}:${state.backendPort}`;
-}
-
-async function checkConnection() {
-    const host = getBackendURL();
-    try {
-        const res = await fetch(host + "/", { cache: "no-cache" });
-        if (res.ok) {
-            updateStatus(true, "System Online & Ready");
-        } else {
-            updateStatus(false, "Server Error: " + res.status);
-        }
-    } catch (e) {
-        updateStatus(false, "Connection Fail: " + e.message);
-    }
+    statusText.innerText = message || (online ? "System Ready" : "System Offline");
 }
 
 // --- CAMERA LOGIC ---
@@ -73,7 +35,7 @@ async function initCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                facingMode: { ideal: "environment" }, // Rear camera
+                facingMode: { ideal: "environment" },
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
             },
@@ -81,63 +43,57 @@ async function initCamera() {
         });
 
         video.srcObject = stream;
-        
         video.onloadedmetadata = () => {
+            video.play();
+            state.cameraStarted = true;
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            state.cameraStarted = true;
-            cameraOverlay.classList.add("hidden");
-            updateStatus(state.isOnline, "Camera Active & Scanning");
+            startBtn.style.display = "none";
+            updateStatus(true, "Camera Active & Scanning");
         };
-
-    } catch (error) {
-        console.error("Camera Error:", error);
-        alert("Camera Access Denied: Please use HTTPS or enable Chrome flags for insecure origins.");
+    } catch (err) {
+        console.error("Camera Error:", err);
+        alert("Please enable camera permissions.");
     }
 }
 
-// --- DETECTION & DRAWING ---
+// --- DETECTION LOGIC ---
 
 function drawOverlay(detections) {
     state.lastDetections = detections;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // --- DRAW GUIDE BOX (ROI) ---
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-    ctx.setLineDash([10, 10]);
-    ctx.lineWidth = 2;
+    // DRAW GUIDE BOX (ROI)
     const size = 400;
     const gx = (canvas.width - size) / 2;
     const gy = (canvas.height - size) / 2;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.setLineDash([10, 10]);
+    ctx.lineWidth = 2;
     ctx.strokeRect(gx, gy, size, size);
-    ctx.setLineDash([]); // Reset dash
+    ctx.setLineDash([]);
 
     let counts = { papaya: 0, pepper: 0 };
 
     detections.forEach(obj => {
         const [x1, y1, x2, y2] = obj.bbox;
         const name = (obj.class || "Seed").toLowerCase();
-        
-        // Match exactly what the model says
         const isPapaya = name.includes("papaya");
-        const isPepper = name.includes("pepper");
-        const color = isPapaya ? "#22c55e" : (isPepper ? "#ef4444" : "#f59e0b"); 
+        const color = isPapaya ? "#22c55e" : "#ef4444"; 
         
         if (isPapaya) counts.papaya++;
-        else if (isPepper) counts.pepper++;
+        else counts.pepper++;
 
-        // Draw Box
         ctx.strokeStyle = color;
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 6;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw Label
         ctx.fillStyle = color;
         const labelText = name.toUpperCase();
-        ctx.font = "bold 18px Outfit";
-        ctx.fillRect(x1, y1 - 25, ctx.measureText(labelText).width + 10, 25);
+        ctx.font = "bold 20px Outfit";
+        ctx.fillRect(x1, y1 - 30, ctx.measureText(labelText).width + 10, 30);
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(labelText, x1 + 5, y1 - 7);
+        ctx.fillText(labelText, x1 + 5, y1 - 8);
     });
 
     papayaCountEl.innerText = counts.papaya;
@@ -147,68 +103,45 @@ function drawOverlay(detections) {
 async function processFrame() {
     if (!state.cameraStarted || video.readyState < 2) return;
 
-    // Force alignment
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Center Crop (ROI)
+    const size = 400;
+    const sx = (video.videoWidth - size) / 2;
+    const sy = (video.videoHeight - size) / 2;
+    
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = size;
+    offCanvas.height = size;
+    const offCtx = offCanvas.getContext("2d");
+    offCtx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
 
-    // REAL DETECTION
-    const offscreenCanvas = document.createElement("canvas");
-    offscreenCanvas.width = video.videoWidth;
-    offscreenCanvas.height = video.videoHeight;
-    const offCtx = offscreenCanvas.getContext("2d");
-    offCtx.drawImage(video, 0, 0);
-
-    offscreenCanvas.toBlob(async (blob) => {
+    offCanvas.toBlob(async (blob) => {
         const formData = new FormData();
         formData.append("file", blob, "frame.jpg");
-
         const url = `${getBackendURL()}/detect`;
+
         try {
-            const res = await fetch(url, {
-                method: "POST",
-                body: formData,
-                cache: "no-cache"
-            });
-
-            if (!res.ok) throw new Error("Backend Error");
-
+            const res = await fetch(url, { method: "POST", body: formData });
             const data = await res.json();
             if (data.detections) {
-                drawOverlay(data.detections);
+                // Adjust coordinates to global space
+                const adjusted = data.detections.map(d => ({
+                    ...d,
+                    bbox: [
+                        d.bbox[0] + sx,
+                        d.bbox[1] + sy,
+                        d.bbox[2] + sx,
+                        d.bbox[3] + sy
+                    ]
+                }));
+                drawOverlay(adjusted);
                 updateStatus(true, `Detection Active (${data.detections.length})`);
             }
-        } catch (error) {
-            console.error("Inference Error:", error);
-            updateStatus(false, "Error: " + error.message + " | URL: " + url);
+        } catch (e) {
+            console.error(e);
         }
-    }, "image/jpeg", 0.5); // 0.5 quality for faster upload
+    }, "image/jpeg", 0.5);
 }
 
-// --- EVENT LISTENERS ---
-
+// --- INIT ---
 startBtn.addEventListener("click", initCamera);
-
-settingsBtn.addEventListener("click", () => {
-    settingsModal.style.display = "flex";
-});
-
-closeSettings.addEventListener("click", () => {
-    settingsModal.style.display = "none";
-});
-
-saveSettings.addEventListener("click", () => {
-    state.backendHost = hostInput.value.trim();
-    state.backendPort = portInput.value.trim();
-    
-    localStorage.setItem('backendHost', state.backendHost);
-    localStorage.setItem('backendPort', state.backendPort);
-    
-    settingsModal.style.display = "none";
-    checkConnection();
-});
-
-// Run detection loop
-setInterval(processFrame, 500); // 2 FPS for better real-time feel
-
-// Initial Check
-checkConnection();
+setInterval(processFrame, 600); // Fast enough but stable
