@@ -102,6 +102,16 @@ function drawOverlay(detections) {
     state.lastDetections = detections;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // --- DRAW GUIDE BOX (ROI) ---
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.setLineDash([10, 10]);
+    ctx.lineWidth = 2;
+    const size = 400;
+    const gx = (canvas.width - size) / 2;
+    const gy = (canvas.height - size) / 2;
+    ctx.strokeRect(gx, gy, size, size);
+    ctx.setLineDash([]); // Reset dash
+
     let counts = { papaya: 0, pepper: 0 };
 
     detections.forEach(obj => {
