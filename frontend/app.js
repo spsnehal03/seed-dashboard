@@ -43,14 +43,15 @@ async function initCamera() {
         });
 
         video.srcObject = stream;
-        video.onloadedmetadata = () => {
-            video.play();
-            state.cameraStarted = true;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            startBtn.style.display = "none";
-            updateStatus(true, "Camera Active & Scanning");
-        };
+        
+        // Force play immediately for mobile browsers
+        await video.play();
+        
+        state.cameraStarted = true;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        startBtn.style.display = "none";
+        updateStatus(true, "Camera Active & Scanning");
     } catch (err) {
         console.error("Camera Error:", err);
         alert("Please enable camera permissions.");
