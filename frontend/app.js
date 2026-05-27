@@ -3,8 +3,10 @@ let state = {
     cameraStarted: false,
     backendHost: 'snehal003-seed-detection-api.hf.space',
     isOnline: true,
-    isProcessing: false, // LOCK to prevent lag
-    lastDetections: []
+    isProcessing: false,
+    lastDetections: [],
+    galleryCount: 0,
+    maxGalleryItems: 20
 };
 
 function getBackendURL() {
@@ -20,6 +22,9 @@ const statusDot = document.getElementById("statusDot");
 const statusText = document.getElementById("statusText");
 const papayaCountEl = document.getElementById("papayaCount");
 const pepperCountEl = document.getElementById("pepperCount");
+const gallerySection = document.getElementById("gallerySection");
+const galleryGrid = document.getElementById("galleryGrid");
+const clearGallery = document.getElementById("clearGallery");
 
 function updateStatus(online, message) {
     state.isOnline = online;
@@ -39,7 +44,6 @@ async function initCamera() {
         document.getElementById("cameraOverlay").classList.add("hidden");
         state.cameraStarted = true;
         
-        // Match canvas exactly
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
@@ -49,6 +53,7 @@ async function initCamera() {
     }
 }
 
+// --- DRAW DETECTIONS ON CANVAS ---
 function drawOverlay(detections) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let counts = { papaya: 0, pepper: 0 };
@@ -69,23 +74,101 @@ function drawOverlay(detections) {
 
         // Draw Label with Background
         ctx.fillStyle = color;
-        const labelText = name.toUpperCase();
-        ctx.font = "bold 18px Outfit";
-        ctx.fillRect(x1, y1 - 25, ctx.measureText(labelText).width + 10, 25);
+        const labelText = isPapaya ? "Papaya_seed" : "Black_pepper";
+        const confText = `${labelText}:${obj.confidence.toFixed(2)}`;
+        ctx.font = "bold 16px Outfit";
+        const tw = ctx.measureText(confText).width;
+        ctx.fillRect(x1, y1 - 25, tw + 10, 25);
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(labelText, x1 + 5, y1 - 7);
+        ctx.fillText(confText, x1 + 5, y1 - 7);
     });
 
     papayaCountEl.innerText = counts.papaya;
     pepperCountEl.innerText = counts.pepper;
 }
 
+// --- CAPTURE SNAPSHOT FOR GALLERY ---
+function captureSnapshot(detections) {
+    if (detections.length === 0) return;
+
+    // Create a combined canvas (video + boxes)
+    const snapCanvas = document.createElement("canvas");
+    snapCanvas.width = video.videoWidth;
+    snapCanvas.height = video.videoHeight;
+    const snapCtx = snapCanvas.getContext("2d");
+
+    // Draw the video frame first
+    snapCtx.drawImage(video, 0, 0);
+
+    // Draw all detection boxes on top
+    let papayaCount = 0;
+    let pepperCount = 0;
+
+    detections.forEach(obj => {
+        const [x1, y1, x2, y2] = obj.bbox;
+        const name = obj.class.toLowerCase();
+        const isPapaya = name.includes("papaya");
+        const color = isPapaya ? "#22c55e" : "#ef4444";
+
+        if (isPapaya) papayaCount++;
+        else pepperCount++;
+
+        // Green/Red Box
+        snapCtx.strokeStyle = color;
+        snapCtx.lineWidth = 4;
+        snapCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+        // Label
+        snapCtx.fillStyle = color;
+        const labelText = isPapaya ? "Papaya_seed" : "Black_pepper";
+        const confText = `${labelText}:${obj.confidence.toFixed(2)}`;
+        snapCtx.font = "bold 14px Outfit";
+        const tw = snapCtx.measureText(confText).width;
+        snapCtx.fillRect(x1, y1 - 22, tw + 8, 22);
+        snapCtx.fillStyle = "#ffffff";
+        snapCtx.fillText(confText, x1 + 4, y1 - 5);
+    });
+
+    // Convert to image
+    const imgURL = snapCanvas.toDataURL("image/jpeg", 0.8);
+
+    // Create gallery card
+    const card = document.createElement("div");
+    card.style.cssText = "background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05);";
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+
+    card.innerHTML = `
+        <img src="${imgURL}" style="width: 100%; display: block;" alt="Detection Frame">
+        <div style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-size: 0.75rem; color: #64748b;">📸 ${timeStr}</span>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: #22c55e;">🟢 Papaya: ${papayaCount}</span>
+                <span style="font-size: 0.8rem; font-weight: 700; color: #ef4444;">🔴 Pepper: ${pepperCount}</span>
+            </div>
+        </div>
+    `;
+
+    // Add to top of gallery (newest first)
+    galleryGrid.prepend(card);
+    gallerySection.style.display = "block";
+    state.galleryCount++;
+
+    // Auto-remove old entries
+    while (galleryGrid.children.length > state.maxGalleryItems) {
+        galleryGrid.removeChild(galleryGrid.lastChild);
+    }
+}
+
+// --- PROCESS FRAME ---
 async function processFrame() {
     if (!state.cameraStarted || video.readyState < 2 || state.isProcessing) return;
 
-    state.isProcessing = true; // LOCK
+    state.isProcessing = true;
     
-    // Ensure canvas matches video size perfectly
     if (canvas.width !== video.videoWidth) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -106,15 +189,28 @@ async function processFrame() {
             if (data.detections) {
                 drawOverlay(data.detections);
                 updateStatus(true, `Detection Active (${data.detections.length})`);
+
+                // Save snapshot to gallery when seeds are found
+                if (data.detections.length > 0) {
+                    captureSnapshot(data.detections);
+                }
             }
         } catch (e) {
             console.error(e);
         } finally {
-            state.isProcessing = false; // UNLOCK
+            state.isProcessing = false;
         }
     }, "image/jpeg", 0.5);
 }
 
+// --- EVENT LISTENERS ---
 startBtn.addEventListener("click", initCamera);
-// Run scanning as fast as the server can handle
-setInterval(processFrame, 100); 
+
+clearGallery.addEventListener("click", () => {
+    galleryGrid.innerHTML = "";
+    gallerySection.style.display = "none";
+    state.galleryCount = 0;
+});
+
+// Run scanning
+setInterval(processFrame, 100);
