@@ -27,6 +27,7 @@ const gallerySection = document.getElementById("gallerySection");
 const galleryGrid = document.getElementById("galleryGrid");
 const clearGallery = document.getElementById("clearGallery");
 const warningBanner = document.getElementById("warningBanner");
+const cameraSelect = document.getElementById("cameraSelect");
 
 function updateStatus(online, message) {
     state.isOnline = online;
@@ -34,12 +35,47 @@ function updateStatus(online, message) {
     statusText.innerText = message || (online ? "System Ready" : "System Offline");
 }
 
+async function enumerateCameras() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === "videoinput");
+        
+        // Save currently selected value
+        const currentSelected = cameraSelect.value;
+        
+        cameraSelect.innerHTML = '<option value="">Default Camera</option>';
+        videoDevices.forEach(device => {
+            const option = document.createElement("option");
+            option.value = device.deviceId;
+            option.textContent = device.label || `Camera ${cameraSelect.childElementCount}`;
+            cameraSelect.appendChild(option);
+        });
+        
+        // Restore selection if it still exists
+        if (currentSelected) {
+            cameraSelect.value = currentSelected;
+        }
+    } catch (e) {
+        console.error("Error listing cameras:", e);
+    }
+}
+
 async function initCamera() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-        });
+        const selectedDeviceId = cameraSelect.value;
+        const constraints = {
+            audio: false,
+            video: selectedDeviceId 
+                ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+        };
+
+        // If there's an active stream, stop all tracks first to release the old camera
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         await video.play();
         
@@ -50,8 +86,12 @@ async function initCamera() {
         canvas.height = video.videoHeight;
         
         updateStatus(true, "Scanning Seeds...");
+        
+        // Enumerate cameras (will have names now since permission was granted)
+        await enumerateCameras();
     } catch (err) {
-        alert("Camera Error: Please allow permissions.");
+        alert("Camera Error: Please allow permissions or select a valid camera.");
+        console.error(err);
     }
 }
 
@@ -250,6 +290,12 @@ clearGallery.addEventListener("click", () => {
     galleryGrid.innerHTML = "";
     gallerySection.style.display = "none";
     state.galleryCount = 0;
+});
+
+cameraSelect.addEventListener("change", () => {
+    if (state.cameraStarted) {
+        initCamera();
+    }
 });
 
 // Run scanning
