@@ -27,7 +27,6 @@ const gallerySection = document.getElementById("gallerySection");
 const galleryGrid = document.getElementById("galleryGrid");
 const clearGallery = document.getElementById("clearGallery");
 const warningBanner = document.getElementById("warningBanner");
-const cameraSelect = document.getElementById("cameraSelect");
 
 function updateStatus(online, message) {
     state.isOnline = online;
@@ -35,39 +34,12 @@ function updateStatus(online, message) {
     statusText.innerText = message || (online ? "System Ready" : "System Offline");
 }
 
-async function enumerateCameras() {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === "videoinput");
-        
-        // Save currently selected value
-        const currentSelected = cameraSelect.value;
-        
-        cameraSelect.innerHTML = '<option value="">Default Camera</option>';
-        videoDevices.forEach(device => {
-            const option = document.createElement("option");
-            option.value = device.deviceId;
-            option.textContent = device.label || `Camera ${cameraSelect.childElementCount}`;
-            cameraSelect.appendChild(option);
-        });
-        
-        // Restore selection if it still exists
-        if (currentSelected) {
-            cameraSelect.value = currentSelected;
-        }
-    } catch (e) {
-        console.error("Error listing cameras:", e);
-    }
-}
-
 async function initCamera() {
     try {
-        const selectedDeviceId = cameraSelect.value;
-        const constraints = {
+        // 1. Initial request with default settings (facingMode environment for mobile, or default for laptop)
+        let constraints = {
             audio: false,
-            video: selectedDeviceId 
-                ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-                : { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
         // If there's an active stream, stop all tracks first to release the old camera
@@ -75,7 +47,30 @@ async function initCamera() {
             video.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        let stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        // 2. Refresh device list with permission granted to see labels/names
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === "videoinput");
+        
+        // Find any camera containing "iriun" in its label
+        const iriunDevice = videoDevices.find(device => 
+            device.label.toLowerCase().includes("iriun")
+        );
+
+        // 3. If Iriun Webcam is found, stop default stream and switch to Iriun automatically!
+        if (iriunDevice) {
+            console.log("Iriun Webcam detected! Auto-switching stream...");
+            stream.getTracks().forEach(track => track.stop()); // Stop default camera
+            
+            constraints.video = { 
+                deviceId: { exact: iriunDevice.deviceId }, 
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 } 
+            };
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+        }
+
         video.srcObject = stream;
         await video.play();
         
@@ -86,14 +81,12 @@ async function initCamera() {
         canvas.height = video.videoHeight;
         
         updateStatus(true, "Scanning Seeds...");
-        
-        // Enumerate cameras (will have names now since permission was granted)
-        await enumerateCameras();
     } catch (err) {
-        alert("Camera Error: Please allow permissions or select a valid camera.");
+        alert("Camera Error: Please allow camera permissions.");
         console.error(err);
     }
 }
+
 
 // --- DRAW DETECTIONS ON CANVAS ---
 function drawOverlay(detections) {
@@ -292,11 +285,6 @@ clearGallery.addEventListener("click", () => {
     state.galleryCount = 0;
 });
 
-cameraSelect.addEventListener("change", () => {
-    if (state.cameraStarted) {
-        initCamera();
-    }
-});
 
 // Run scanning
 setInterval(processFrame, 100);
