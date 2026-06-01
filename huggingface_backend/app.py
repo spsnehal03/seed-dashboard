@@ -83,98 +83,105 @@ async def detect(
     np_arr = np.frombuffer(contents, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     
-    if frame is None:
-        return {"error": "Could not decode image", "detections": []}
-    
-    # Decide which model to use
-    use_rcnn = False
-    if model_type == "rcnn" and rcnn_model is not None:
-        use_rcnn = True
-    elif model_type == "yolo" and yolo_model is not None:
+    try:
+        if frame is None:
+            return {"error": "Could not decode image", "detections": []}
+
+        # Decide which model to use
         use_rcnn = False
-    else:
-        # 'auto' mode: Prefer R-CNN if loaded, fallback to YOLO
-        use_rcnn = rcnn_model is not None
+        if model_type == "rcnn" and rcnn_model is not None:
+            use_rcnn = True
+        elif model_type == "yolo" and yolo_model is not None:
+            use_rcnn = False
+        else:
+            # 'auto' mode: Prefer R-CNN if loaded, fallback to YOLO
+            use_rcnn = rcnn_model is not None
 
-    detections = []
+        detections = []
 
-    if use_rcnn:
-        # --- FASTER R-CNN INFERENCE ---
-        orig_h, orig_w = frame.shape[:2]
-        inf_w, inf_h = 640, 480
-        
-        # Resize to speed up CPU inference dramatically
-        resized_frame = cv2.resize(frame, (inf_w, inf_h))
-        rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
-        tensor = F.to_tensor(rgb_frame).to(device)
-        
-        with torch.no_grad():
-            prediction = rcnn_model([tensor])[0]
+        if use_rcnn:
+            # --- FASTER R-CNN INFERENCE ---
+            orig_h, orig_w = frame.shape[:2]
+            inf_w, inf_h = 640, 480
             
-        boxes = prediction["boxes"]
-        labels = prediction["labels"]
-        scores = prediction["scores"]
-        
-        # Scale boxes back to original resolution
-        if len(boxes) > 0:
-            scale_x = orig_w / inf_w
-            scale_y = orig_h / inf_h
-            boxes[:, 0] *= scale_x
-            boxes[:, 2] *= scale_x
-            boxes[:, 1] *= scale_y
-            boxes[:, 3] *= scale_y
-        
-        # Filter by high confidence to prevent false detections on random objects/faces
-        confidence_threshold = 0.75
-        nms_threshold = 0.25
-        
-        keep = (scores > confidence_threshold)
-        boxes = boxes[keep]
-        labels = labels[keep]
-        scores = scores[keep]
-        
-        if len(boxes) > 0:
-            keep_idx = nms(boxes, scores, nms_threshold)
-            boxes = boxes[keep_idx]
-            labels = labels[keep_idx]
-            scores = scores[keep_idx]
+            # Resize to speed up CPU inference dramatically
+            resized_frame = cv2.resize(frame, (inf_w, inf_h))
+            rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+            tensor = F.to_tensor(rgb_frame).to(device)
             
-        for box, label, score in zip(boxes, labels, scores):
-            x1, y1, x2, y2 = map(int, box.tolist())
-            
-            # Simple noise filter to reject tiny artifacts
-            area = (x2 - x1) * (y2 - y1)
-            if area < 800:  
-                continue
+            with torch.no_grad():
+                prediction = rcnn_model([tensor])[0]
                 
-            class_id = int(label)
-            class_name = rcnn_classes.get(class_id, "unknown")
+            boxes = prediction["boxes"]
+            labels = prediction["labels"]
+            scores = prediction["scores"]
             
-            # Skip background or unknown detections
-            if class_name == "unknown":
-                continue
+            # Scale boxes back to original resolution
+            if len(boxes) > 0:
+                scale_x = orig_w / inf_w
+                scale_y = orig_h / inf_h
+                boxes[:, 0] *= scale_x
+                boxes[:, 2] *= scale_x
+                boxes[:, 1] *= scale_y
+                boxes[:, 3] *= scale_y
+            
+            # Filter by high confidence to prevent false detections on random objects/faces
+            confidence_threshold = 0.75
+            nms_threshold = 0.25
+            
+            keep = (scores > confidence_threshold)
+            boxes = boxes[keep]
+            labels = labels[keep]
+            scores = scores[keep]
+            
+            if len(boxes) > 0:
+                keep_idx = nms(boxes, scores, nms_threshold)
+                boxes = boxes[keep_idx]
+                labels = labels[keep_idx]
+                scores = scores[keep_idx]
                 
-            detections.append({
-                "bbox": [float(x1), float(y1), float(x2), float(y2)],
-                "class": class_name,
-                "confidence": float(score)
-            })
-    else:
-        # --- YOLOv8 INFERENCE ---
-        if yolo_model is not None:
-            # Set a moderate confidence to filter out random faces/objects
-            results = yolo_model.predict(frame, conf=0.45, iou=0.25)
-            for box in results[0].boxes:
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                cls_id = int(box.cls[0])
-                confidence = float(box.conf[0])
-                class_name = "papaya" if cls_id == 0 else "pepper"
+            for box, label, score in zip(boxes, labels, scores):
+                x1, y1, x2, y2 = map(int, box.tolist())
                 
+                # Simple noise filter to reject tiny artifacts
+                area = (x2 - x1) * (y2 - y1)
+                if area < 800:  
+                    continue
+                    
+                class_id = int(label)
+                class_name = rcnn_classes.get(class_id, "unknown")
+                
+                # Skip background or unknown detections
+                if class_name == "unknown":
+                    continue
+                    
                 detections.append({
-                    "bbox": [x1, y1, x2, y2],
+                    "bbox": [float(x1), float(y1), float(x2), float(y2)],
                     "class": class_name,
-                    "confidence": confidence
+                    "confidence": float(score)
                 })
+        else:
+            # --- YOLOv8 INFERENCE ---
+            if yolo_model is not None:
+                # Set a moderate confidence to filter out random faces/objects
+                results = yolo_model.predict(frame, conf=0.45, iou=0.25)
+                for box in results[0].boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    cls_id = int(box.cls[0])
+                    confidence = float(box.conf[0])
+                    class_name = "papaya" if cls_id == 0 else "pepper"
+                    
+                    detections.append({
+                        "bbox": [x1, y1, x2, y2],
+                        "class": class_name,
+                        "confidence": confidence
+                    })
 
-    print(f"[{'R-CNN' if use_rcnn else 'YOLO'}] Detected {len(detections)} seeds")
-    return {"detections": detections, "engine": "rcnn" if use_rcnn else "yolo"}
+        print(f"[{'R-CNN' if use_rcnn else 'YOLO'}] Detected {len(detections)} seeds")
+        return {"detections": detections, "engine": "rcnn" if use_rcnn else "yolo"}
+
+    except Exception as e:
+        import traceback
+        err_msg = traceback.format_exc()
+        print("ERROR IN DETECT:", err_msg)
+        return {"error": str(e), "traceback": err_msg, "detections": []}
