@@ -288,4 +288,4 @@ clearGallery.addEventListener("click", () => {
 
 
 // Run scanning
-setInterval(processFrame, 100);
+setInterval(processFrame, 400);

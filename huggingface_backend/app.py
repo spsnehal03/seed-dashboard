@@ -106,7 +106,13 @@ async def detect(
             
             # Resize to speed up CPU inference dramatically
             resized_frame = cv2.resize(frame, (inf_w, inf_h))
-            rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+
+            # Crop ROI to remove the Iriun Watermark on the bottom left
+            ROI_X1, ROI_Y1 = 70, 30
+            ROI_X2, ROI_Y2 = 635, 470
+            roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
+            
+            rgb_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
             tensor = F.to_tensor(rgb_frame).to(device)
             
             with torch.no_grad():
@@ -116,18 +122,9 @@ async def detect(
             labels = prediction["labels"]
             scores = prediction["scores"]
             
-            # Scale boxes back to original resolution
-            if len(boxes) > 0:
-                scale_x = orig_w / inf_w
-                scale_y = orig_h / inf_h
-                boxes[:, 0] *= scale_x
-                boxes[:, 2] *= scale_x
-                boxes[:, 1] *= scale_y
-                boxes[:, 3] *= scale_y
-            
-            # Filter by high confidence to prevent false detections on random objects/faces
-            confidence_threshold = 0.75
-            nms_threshold = 0.25
+            # Filter by high confidence to prevent false detections
+            confidence_threshold = 0.85
+            nms_threshold = 0.30
             
             keep = (scores > confidence_threshold)
             boxes = boxes[keep]
@@ -139,6 +136,20 @@ async def detect(
                 boxes = boxes[keep_idx]
                 labels = labels[keep_idx]
                 scores = scores[keep_idx]
+
+                # Offset boxes back by ROI coordinates
+                boxes[:, 0] += ROI_X1
+                boxes[:, 2] += ROI_X1
+                boxes[:, 1] += ROI_Y1
+                boxes[:, 3] += ROI_Y1
+                
+                # Scale boxes back to original resolution
+                scale_x = orig_w / inf_w
+                scale_y = orig_h / inf_h
+                boxes[:, 0] *= scale_x
+                boxes[:, 2] *= scale_x
+                boxes[:, 1] *= scale_y
+                boxes[:, 3] *= scale_y
                 
             for box, label, score in zip(boxes, labels, scores):
                 x1, y1, x2, y2 = map(int, box.tolist())
