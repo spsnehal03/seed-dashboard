@@ -100,11 +100,12 @@ function drawOverlay(detections) {
         const isPapaya = name.includes("papaya");
         
         // --- SMART NOISE FILTER ---
-        // Seeds are very tiny. A human face or random large object will have a huge bounding box.
+        // Seeds are very tiny, but if the camera is close they can appear large.
+        // We only filter out extremely tiny artifacts.
         const boxWidth = x2 - x1;
         const boxHeight = y2 - y1;
-        if (boxWidth > 200 || boxHeight > 200 || boxWidth < 15 || boxHeight < 15) {
-            return; // Ignore large objects (faces, hands) or tiny specs of dust
+        if (boxWidth < 15 || boxHeight < 15) {
+            return; // Ignore tiny specs of dust
         }
 
         validDetectionsCount++;
@@ -157,7 +158,7 @@ function captureSnapshot(detections) {
         const [x1, y1, x2, y2] = obj.bbox;
         const boxWidth = x2 - x1;
         const boxHeight = y2 - y1;
-        return boxWidth <= 200 && boxHeight <= 200 && boxWidth >= 15 && boxHeight >= 15;
+        return boxWidth >= 15 && boxHeight >= 15;
     });
 
     if (validDetections.length === 0) return;
