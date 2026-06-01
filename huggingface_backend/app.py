@@ -118,7 +118,7 @@ async def detect(
             scores = prediction["scores"]
             
             # Filter by high confidence to prevent false detections
-            confidence_threshold = 0.85
+            confidence_threshold = 0.75
             nms_threshold = 0.30
             
             keep = (scores > confidence_threshold)
