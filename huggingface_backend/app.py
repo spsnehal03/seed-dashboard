@@ -107,7 +107,12 @@ async def detect(
             # Resize to speed up CPU inference dramatically
             resized_frame = cv2.resize(frame, (inf_w, inf_h))
             
-            rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+            # Crop ROI to match exactly how the model was trained/tested (fixes misclassification)
+            ROI_X1, ROI_Y1 = 70, 30
+            ROI_X2, ROI_Y2 = 635, 470
+            roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
+            
+            rgb_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
             tensor = F.to_tensor(rgb_frame).to(device)
             
             with torch.no_grad():
@@ -132,6 +137,12 @@ async def detect(
                 labels = labels[keep_idx]
                 scores = scores[keep_idx]
                 
+                # Offset boxes back by ROI coordinates
+                boxes[:, 0] += ROI_X1
+                boxes[:, 2] += ROI_X1
+                boxes[:, 1] += ROI_Y1
+                boxes[:, 3] += ROI_Y1
+                
                 # Scale boxes back to original resolution
                 scale_x = orig_w / inf_w
                 scale_y = orig_h / inf_h
@@ -142,12 +153,6 @@ async def detect(
                 
             for box, label, score in zip(boxes, labels, scores):
                 x1, y1, x2, y2 = map(int, box.tolist())
-                
-                # --- WATERMARK FILTER ---
-                # Iriun webcam puts a watermark in the bottom-left corner.
-                # If a detection is in the bottom-left 20% width and bottom 20% height, ignore it.
-                if x1 < (orig_w * 0.20) and y2 > (orig_h * 0.80):
-                    continue
                 
                 # Simple noise filter to reject tiny artifacts
                 area = (x2 - x1) * (y2 - y1)
