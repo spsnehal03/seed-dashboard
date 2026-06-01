@@ -100,8 +100,12 @@ async def detect(
 
     if use_rcnn:
         # --- FASTER R-CNN INFERENCE ---
-        # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        orig_h, orig_w = frame.shape[:2]
+        inf_w, inf_h = 640, 480
+        
+        # Resize to speed up CPU inference dramatically
+        resized_frame = cv2.resize(frame, (inf_w, inf_h))
+        rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
         tensor = F.to_tensor(rgb_frame).to(device)
         
         with torch.no_grad():
@@ -110,6 +114,15 @@ async def detect(
         boxes = prediction["boxes"]
         labels = prediction["labels"]
         scores = prediction["scores"]
+        
+        # Scale boxes back to original resolution
+        if len(boxes) > 0:
+            scale_x = orig_w / inf_w
+            scale_y = orig_h / inf_h
+            boxes[:, 0] *= scale_x
+            boxes[:, 2] *= scale_x
+            boxes[:, 1] *= scale_y
+            boxes[:, 3] *= scale_y
         
         # Filter by high confidence to prevent false detections on random objects/faces
         confidence_threshold = 0.75
