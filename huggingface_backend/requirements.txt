@@ -6,4 +6,5 @@ fastapi
 uvicorn
 python-multipart
 opencv-python-headless
-numpy
+numpy<2
+
