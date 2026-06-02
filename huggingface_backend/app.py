@@ -132,10 +132,20 @@ async def detect(
             scores = scores[keep]
             
             if len(boxes) > 0:
+                # --- ADULTERATION BIAS ---
+                # Boost Papaya (label=2) scores so NMS prioritizes it over Pepper
+                # if the model is confused and predicts both for the same seed.
+                papaya_mask = (labels == 2)
+                scores[papaya_mask] += 0.20
+                
                 keep_idx = nms(boxes, scores, nms_threshold)
                 boxes = boxes[keep_idx]
                 labels = labels[keep_idx]
                 scores = scores[keep_idx]
+                
+                # Restore original scores so they don't exceed 1.00 in the UI
+                scores[labels == 2] -= 0.20
+                scores = torch.clamp(scores, 0.0, 1.0)
                 
                 # Offset boxes back by ROI coordinates
                 boxes[:, 0] += ROI_X1
