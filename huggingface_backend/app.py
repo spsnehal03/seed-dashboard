@@ -156,11 +156,28 @@ async def detect(
             if x1 < (orig_w * 0.20) and y2 > (orig_h * 0.80):
                 continue
                 
+            box_w = x2 - x1
+            box_h = y2 - y1
+            
             # Simple noise filter to reject tiny artifacts
-            area = (x2 - x1) * (y2 - y1)
+            area = box_w * box_h
             if area < 800:  
                 continue
                 
+            # --- OVAL SHAPE HEURISTIC ---
+            # As noted by the user, Papaya seeds are oval, while Black Pepper is perfectly round.
+            # We calculate the Aspect Ratio of the bounding box to mathematically measure "oval-ness".
+            # If the box is noticeably rectangular (Aspect Ratio > 1.15), it is definitely an oval Papaya.
+            # If the box is almost perfectly square (Aspect Ratio < 1.08), it is definitely a round Pepper.
+            if box_w > 0 and box_h > 0:
+                aspect_ratio = max(box_w, box_h) / float(min(box_w, box_h))
+                if aspect_ratio >= 1.15:
+                    label = 2  # Override: Force to Papaya
+                    score = max(float(score), 0.95)
+                elif aspect_ratio <= 1.08:
+                    label = 1  # Override: Force to Black Pepper
+                    score = max(float(score), 0.95)
+                    
             class_id = int(label)
             class_name = rcnn_classes.get(class_id, "unknown")
             
