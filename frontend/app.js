@@ -36,10 +36,9 @@ function updateStatus(online, message) {
 
 async function initCamera() {
     try {
-        // 1. Initial request with default settings (facingMode environment for mobile, or default for laptop)
         let constraints = {
             audio: false,
-            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
         // If there's an active stream, stop all tracks first to release the old camera
