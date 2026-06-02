@@ -97,7 +97,13 @@ async def detect(
         # Resize proportionally. NO SQUISHING, NO CROPPING.
         resized_frame = cv2.resize(frame, (inf_w, inf_h))
         
-        rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+        # --- EXPOSURE RECOVERY ---
+        # Iriun webcam's auto-exposure often washes out the delicate ridges of Papaya seeds.
+        # We apply a slight contrast boost to mathematically deepen the shadows 
+        # and recover the ridges before the AI sees it.
+        enhanced_frame = cv2.convertScaleAbs(resized_frame, alpha=1.3, beta=-20)
+        
+        rgb_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_BGR2RGB)
         tensor = F.to_tensor(rgb_frame).to(device)
         
         with torch.no_grad():
