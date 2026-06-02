@@ -22,18 +22,9 @@ app.add_middleware(
 )
 
 # Global variables to store loaded models
-yolo_model = None
 rcnn_model = None
+rcnn_load_error = "Model file not found"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# --- LOAD YOLO MODEL ---
-YOLO_PATH = "best.onnx"
-if os.path.exists(YOLO_PATH):
-    try:
-        yolo_model = YOLO(YOLO_PATH, task="detect")
-        print("YOLOv8 Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading YOLO model: {e}")
 
 # --- LOAD FASTER R-CNN MODEL ---
 RCNN_PATH = "pepper_detector_checkpoint.pth"
@@ -54,9 +45,12 @@ if os.path.exists(RCNN_PATH):
             
         rcnn_model.to(device)
         rcnn_model.eval()
+        rcnn_load_error = None
         print("Faster R-CNN Model loaded successfully.")
     except Exception as e:
-        print(f"Error loading Faster R-CNN model: {e}")
+        import traceback
+        rcnn_load_error = str(e) + "\n" + traceback.format_exc()
+        print(f"Error loading Faster R-CNN model: {rcnn_load_error}")
 
 # Classes dictionary matching teammates' model
 rcnn_classes = {
@@ -87,147 +81,123 @@ async def detect(
         if frame is None:
             return {"error": "Could not decode image", "detections": []}
 
-        # Decide which model to use
-        use_rcnn = False
-        if model_type == "rcnn" and rcnn_model is not None:
-            use_rcnn = True
-        elif model_type == "yolo" and yolo_model is not None:
-            use_rcnn = False
-        else:
-            # 'auto' mode: Prefer R-CNN if loaded, fallback to YOLO
-            use_rcnn = rcnn_model is not None
+        if rcnn_model is None:
+            return {"error": f"Model failed to load: {rcnn_load_error}", "detections": []}
 
         detections = []
 
-        if use_rcnn:
-            # --- FASTER R-CNN INFERENCE ---
-            orig_h, orig_w = frame.shape[:2]
-            
-            # 1. Center-crop the image to 4:3 aspect ratio before resizing to prevent squishing
-            target_aspect = 640 / 480
-            current_aspect = orig_w / orig_h
-            
-            if current_aspect > target_aspect:
-                new_w = int(orig_h * target_aspect)
-                offset = (orig_w - new_w) // 2
-                cropped_frame = frame[:, offset:offset+new_w]
-                crop_offset_x = offset
-                crop_offset_y = 0
-                cropped_w = new_w
-                cropped_h = orig_h
-            else:
-                new_h = int(orig_w / target_aspect)
-                offset = (orig_h - new_h) // 2
-                cropped_frame = frame[offset:offset+new_h, :]
-                crop_offset_x = 0
-                crop_offset_y = offset
-                cropped_w = orig_w
-                cropped_h = new_h
-
-            inf_w, inf_h = 640, 480
-            
-            # Resize the 4:3 cropped frame to speed up CPU inference dramatically
-            resized_frame = cv2.resize(cropped_frame, (inf_w, inf_h))
-            
-            # Crop ROI to match exactly how the model was trained/tested
-            ROI_X1, ROI_Y1 = 70, 30
-            ROI_X2, ROI_Y2 = 635, 470
-            roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
-            
-            rgb_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-            tensor = F.to_tensor(rgb_frame).to(device)
-            
-            with torch.no_grad():
-                prediction = rcnn_model([tensor])[0]
-                
-            boxes = prediction["boxes"]
-            labels = prediction["labels"]
-            scores = prediction["scores"]
-            
-            # Filter by high confidence to prevent false detections
-            confidence_threshold = 0.75
-            nms_threshold = 0.30
-            
-            keep = (scores > confidence_threshold)
-            boxes = boxes[keep]
-            labels = labels[keep]
-            scores = scores[keep]
-            
-            if len(boxes) > 0:
-                # --- ADULTERATION BIAS ---
-                # Boost Papaya (label=2) scores so NMS prioritizes it over Pepper
-                # if the model is confused and predicts both for the same seed.
-                papaya_mask = (labels == 2)
-                scores[papaya_mask] += 0.20
-                
-                keep_idx = nms(boxes, scores, nms_threshold)
-                boxes = boxes[keep_idx]
-                labels = labels[keep_idx]
-                scores = scores[keep_idx]
-                
-                # Restore original scores so they don't exceed 1.00 in the UI
-                scores[labels == 2] -= 0.20
-                scores = torch.clamp(scores, 0.0, 1.0)
-                
-                # Offset boxes back by ROI coordinates
-                boxes[:, 0] += ROI_X1
-                boxes[:, 2] += ROI_X1
-                boxes[:, 1] += ROI_Y1
-                boxes[:, 3] += ROI_Y1
-                
-                # Scale boxes back from 640x480 to the 4:3 cropped frame's resolution
-                scale_x = cropped_w / inf_w
-                scale_y = cropped_h / inf_h
-                boxes[:, 0] *= scale_x
-                boxes[:, 2] *= scale_x
-                boxes[:, 1] *= scale_y
-                boxes[:, 3] *= scale_y
-
-                # Add the initial crop offset to map back to the original 16:9 image
-                boxes[:, 0] += crop_offset_x
-                boxes[:, 2] += crop_offset_x
-                boxes[:, 1] += crop_offset_y
-                boxes[:, 3] += crop_offset_y
-                
-            for box, label, score in zip(boxes, labels, scores):
-                x1, y1, x2, y2 = map(int, box.tolist())
-                
-                # Simple noise filter to reject tiny artifacts
-                area = (x2 - x1) * (y2 - y1)
-                if area < 800:  
-                    continue
-                    
-                class_id = int(label)
-                class_name = rcnn_classes.get(class_id, "unknown")
-                
-                # Skip background or unknown detections
-                if class_name == "unknown":
-                    continue
-                    
-                detections.append({
-                    "bbox": [float(x1), float(y1), float(x2), float(y2)],
-                    "class": class_name,
-                    "confidence": float(score)
-                })
+        # --- FASTER R-CNN INFERENCE ---
+        orig_h, orig_w = frame.shape[:2]
+        
+        # 1. Center-crop the image to 4:3 aspect ratio before resizing to prevent squishing
+        target_aspect = 640 / 480
+        current_aspect = orig_w / orig_h
+        
+        if current_aspect > target_aspect:
+            new_w = int(orig_h * target_aspect)
+            offset = (orig_w - new_w) // 2
+            cropped_frame = frame[:, offset:offset+new_w]
+            crop_offset_x = offset
+            crop_offset_y = 0
+            cropped_w = new_w
+            cropped_h = orig_h
         else:
-            # --- YOLOv8 INFERENCE ---
-            if yolo_model is not None:
-                # Set a moderate confidence to filter out random faces/objects
-                results = yolo_model.predict(frame, conf=0.45, iou=0.25)
-                for box in results[0].boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    cls_id = int(box.cls[0])
-                    confidence = float(box.conf[0])
-                    class_name = "papaya" if cls_id == 0 else "pepper"
-                    
-                    detections.append({
-                        "bbox": [x1, y1, x2, y2],
-                        "class": class_name,
-                        "confidence": confidence
-                    })
+            new_h = int(orig_w / target_aspect)
+            offset = (orig_h - new_h) // 2
+            cropped_frame = frame[offset:offset+new_h, :]
+            crop_offset_x = 0
+            crop_offset_y = offset
+            cropped_w = orig_w
+            cropped_h = new_h
 
-        print(f"[{'R-CNN' if use_rcnn else 'YOLO'}] Detected {len(detections)} seeds")
-        return {"detections": detections, "engine": "rcnn" if use_rcnn else "yolo"}
+        inf_w, inf_h = 640, 480
+        
+        # Resize the 4:3 cropped frame to speed up CPU inference dramatically
+        resized_frame = cv2.resize(cropped_frame, (inf_w, inf_h))
+        
+        # Crop ROI to match exactly how the model was trained/tested
+        ROI_X1, ROI_Y1 = 70, 30
+        ROI_X2, ROI_Y2 = 635, 470
+        roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
+        
+        rgb_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+        tensor = F.to_tensor(rgb_frame).to(device)
+        
+        with torch.no_grad():
+            prediction = rcnn_model([tensor])[0]
+            
+        boxes = prediction["boxes"]
+        labels = prediction["labels"]
+        scores = prediction["scores"]
+        
+        # Filter by high confidence to prevent false detections
+        confidence_threshold = 0.75
+        nms_threshold = 0.30
+        
+        keep = (scores > confidence_threshold)
+        boxes = boxes[keep]
+        labels = labels[keep]
+        scores = scores[keep]
+        
+        if len(boxes) > 0:
+            # --- ADULTERATION BIAS ---
+            # Boost Papaya (label=2) scores so NMS prioritizes it over Pepper
+            # if the model is confused and predicts both for the same seed.
+            papaya_mask = (labels == 2)
+            scores[papaya_mask] += 0.20
+            
+            keep_idx = nms(boxes, scores, nms_threshold)
+            boxes = boxes[keep_idx]
+            labels = labels[keep_idx]
+            scores = scores[keep_idx]
+            
+            # Restore original scores so they don't exceed 1.00 in the UI
+            scores[labels == 2] -= 0.20
+            scores = torch.clamp(scores, 0.0, 1.0)
+            
+            # Offset boxes back by ROI coordinates
+            boxes[:, 0] += ROI_X1
+            boxes[:, 2] += ROI_X1
+            boxes[:, 1] += ROI_Y1
+            boxes[:, 3] += ROI_Y1
+            
+            # Scale boxes back from 640x480 to the 4:3 cropped frame's resolution
+            scale_x = cropped_w / inf_w
+            scale_y = cropped_h / inf_h
+            boxes[:, 0] *= scale_x
+            boxes[:, 2] *= scale_x
+            boxes[:, 1] *= scale_y
+            boxes[:, 3] *= scale_y
+
+            # Add the initial crop offset to map back to the original 16:9 image
+            boxes[:, 0] += crop_offset_x
+            boxes[:, 2] += crop_offset_x
+            boxes[:, 1] += crop_offset_y
+            boxes[:, 3] += crop_offset_y
+            
+        for box, label, score in zip(boxes, labels, scores):
+            x1, y1, x2, y2 = map(int, box.tolist())
+            
+            # Simple noise filter to reject tiny artifacts
+            area = (x2 - x1) * (y2 - y1)
+            if area < 800:  
+                continue
+                
+            class_id = int(label)
+            class_name = rcnn_classes.get(class_id, "unknown")
+            
+            # Skip background or unknown detections
+            if class_name == "unknown":
+                continue
+                
+            detections.append({
+                "bbox": [float(x1), float(y1), float(x2), float(y2)],
+                "class": class_name,
+                "confidence": float(score)
+            })
+
+        print(f"[R-CNN] Detected {len(detections)} seeds")
+        return {"detections": detections, "engine": "rcnn"}
 
     except Exception as e:
         import traceback
