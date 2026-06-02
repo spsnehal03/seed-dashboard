@@ -273,7 +273,7 @@ async function processFrame() {
         } finally {
             state.isProcessing = false;
         }
-    }, "image/jpeg", 0.5);
+    }, "image/jpeg", 0.95);
 }
 
 // --- EVENT LISTENERS ---
