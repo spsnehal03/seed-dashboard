@@ -88,19 +88,16 @@ async def detect(
 
         # --- FASTER R-CNN INFERENCE ---
         orig_h, orig_w = frame.shape[:2]
-        inf_w, inf_h = 640, 480
         
-        # Resize to speed up CPU inference dramatically.
-        # Note: This intentionally squishes widescreen images to 4:3, 
-        # because the model was trained on squished images!
+        # Calculate proportional scale to speed up inference without squishing or cropping
+        scale = 640.0 / max(orig_w, orig_h)
+        inf_w = int(orig_w * scale)
+        inf_h = int(orig_h * scale)
+        
+        # Resize proportionally. NO SQUISHING, NO CROPPING.
         resized_frame = cv2.resize(frame, (inf_w, inf_h))
         
-        # Crop ROI to match exactly how the model was trained/tested (hides the watermark)
-        ROI_X1, ROI_Y1 = 70, 30
-        ROI_X2, ROI_Y2 = 635, 470
-        roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
-        
-        rgb_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+        rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
         tensor = F.to_tensor(rgb_frame).to(device)
         
         with torch.no_grad():
@@ -135,13 +132,7 @@ async def detect(
             scores[labels == 2] -= 0.20
             scores = torch.clamp(scores, 0.0, 1.0)
             
-            # Offset boxes back by ROI coordinates
-            boxes[:, 0] += ROI_X1
-            boxes[:, 2] += ROI_X1
-            boxes[:, 1] += ROI_Y1
-            boxes[:, 3] += ROI_Y1
-            
-            # Scale boxes back from 640x480 to the original frame's resolution
+            # Scale boxes back from inference resolution to the original frame's resolution
             scale_x = orig_w / inf_w
             scale_y = orig_h / inf_h
             boxes[:, 0] *= scale_x
@@ -152,6 +143,12 @@ async def detect(
         for box, label, score in zip(boxes, labels, scores):
             x1, y1, x2, y2 = map(int, box.tolist())
             
+            # --- WATERMARK FILTER ---
+            # Iriun webcam puts a watermark in the bottom-left corner.
+            # If a detection is in the bottom-left 20% width and bottom 20% height, ignore it.
+            if x1 < (orig_w * 0.20) and y2 > (orig_h * 0.80):
+                continue
+                
             # Simple noise filter to reject tiny artifacts
             area = (x2 - x1) * (y2 - y1)
             if area < 800:  
