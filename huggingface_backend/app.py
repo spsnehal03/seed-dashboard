@@ -102,12 +102,34 @@ async def detect(
         if use_rcnn:
             # --- FASTER R-CNN INFERENCE ---
             orig_h, orig_w = frame.shape[:2]
+            
+            # 1. Center-crop the image to 4:3 aspect ratio before resizing to prevent squishing
+            target_aspect = 640 / 480
+            current_aspect = orig_w / orig_h
+            
+            if current_aspect > target_aspect:
+                new_w = int(orig_h * target_aspect)
+                offset = (orig_w - new_w) // 2
+                cropped_frame = frame[:, offset:offset+new_w]
+                crop_offset_x = offset
+                crop_offset_y = 0
+                cropped_w = new_w
+                cropped_h = orig_h
+            else:
+                new_h = int(orig_w / target_aspect)
+                offset = (orig_h - new_h) // 2
+                cropped_frame = frame[offset:offset+new_h, :]
+                crop_offset_x = 0
+                crop_offset_y = offset
+                cropped_w = orig_w
+                cropped_h = new_h
+
             inf_w, inf_h = 640, 480
             
-            # Resize to speed up CPU inference dramatically
-            resized_frame = cv2.resize(frame, (inf_w, inf_h))
+            # Resize the 4:3 cropped frame to speed up CPU inference dramatically
+            resized_frame = cv2.resize(cropped_frame, (inf_w, inf_h))
             
-            # Crop ROI to match exactly how the model was trained/tested (fixes misclassification)
+            # Crop ROI to match exactly how the model was trained/tested
             ROI_X1, ROI_Y1 = 70, 30
             ROI_X2, ROI_Y2 = 635, 470
             roi = resized_frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
@@ -153,13 +175,19 @@ async def detect(
                 boxes[:, 1] += ROI_Y1
                 boxes[:, 3] += ROI_Y1
                 
-                # Scale boxes back to original resolution
-                scale_x = orig_w / inf_w
-                scale_y = orig_h / inf_h
+                # Scale boxes back from 640x480 to the 4:3 cropped frame's resolution
+                scale_x = cropped_w / inf_w
+                scale_y = cropped_h / inf_h
                 boxes[:, 0] *= scale_x
                 boxes[:, 2] *= scale_x
                 boxes[:, 1] *= scale_y
                 boxes[:, 3] *= scale_y
+
+                # Add the initial crop offset to map back to the original 16:9 image
+                boxes[:, 0] += crop_offset_x
+                boxes[:, 2] += crop_offset_x
+                boxes[:, 1] += crop_offset_y
+                boxes[:, 3] += crop_offset_y
                 
             for box, label, score in zip(boxes, labels, scores):
                 x1, y1, x2, y2 = map(int, box.tolist())
