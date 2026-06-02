@@ -1,8 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import FastAPI, UploadFile, File, Query, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 import os
+import time
+import glob
+import base64
+import uuid
 import torch
 import torchvision
 from torchvision.transforms import functional as F
@@ -20,6 +24,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- SNAPSHOT DIRECTORY ---
+SNAPSHOTS_DIR = "snapshots"
+os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+
+def cleanup_old_snapshots():
+    """Deletes files in SNAPSHOTS_DIR older than 24 hours."""
+    now = time.time()
+    for filepath in glob.glob(os.path.join(SNAPSHOTS_DIR, "*")):
+        if os.path.isfile(filepath):
+            file_mod_time = os.path.getmtime(filepath)
+            # 24 hours = 86400 seconds
+            if now - file_mod_time > 86400:
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    print(f"Failed to delete {filepath}: {e}")
 
 # Global variables to store loaded models
 rcnn_model = None
@@ -62,11 +83,37 @@ rcnn_classes = {
 def home():
     status = {
         "message": "Seed Detection API is Running on Hugging Face",
-        "yolo_loaded": yolo_model is not None,
         "rcnn_loaded": rcnn_model is not None,
         "device": str(device)
     }
     return status
+
+@app.post("/save_snapshot")
+async def save_snapshot(background_tasks: BackgroundTasks, image_base64: str = Form(...)):
+    try:
+        # Schedule cleanup task to run in the background after returning response
+        background_tasks.add_task(cleanup_old_snapshots)
+        
+        # Strip the data:image/jpeg;base64, prefix if present
+        if "," in image_base64:
+            _, encoded = image_base64.split(",", 1)
+        else:
+            encoded = image_base64
+            
+        decoded_data = base64.b64decode(encoded)
+        
+        # Save file with a timestamp
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"snapshot_{timestamp}_{unique_id}.jpg"
+        filepath = os.path.join(SNAPSHOTS_DIR, filename)
+        
+        with open(filepath, "wb") as f:
+            f.write(decoded_data)
+            
+        return {"status": "success", "filename": filename}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/detect")
 async def detect(

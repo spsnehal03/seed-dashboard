@@ -204,6 +204,16 @@ function captureSnapshot(detections) {
 
     // Convert to image
     const imgURL = snapCanvas.toDataURL("image/jpeg", 0.8);
+    
+    // Silently upload the snapshot to the backend for auto-saving
+    setTimeout(() => {
+        const formData = new FormData();
+        formData.append("image_base64", imgURL);
+        fetch(`${getBackendURL()}/save_snapshot`, {
+            method: "POST",
+            body: formData
+        }).catch(err => console.error("Failed to auto-save snapshot:", err));
+    }, 0);
 
     // Create gallery card
     const card = document.createElement("div");
