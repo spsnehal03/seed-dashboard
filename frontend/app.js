@@ -263,9 +263,13 @@ async function processFrame() {
                 drawOverlay(data.detections);
                 updateStatus(true, `Detection Active (${data.detections.length})`);
 
-                // Save snapshot to gallery when seeds are found
+                // Save snapshot to gallery (throttled to prevent memory crashes)
                 if (data.detections.length > 0) {
-                    captureSnapshot(data.detections);
+                    const now = Date.now();
+                    if (!state.lastSnapshotTime || now - state.lastSnapshotTime > 3000) {
+                        captureSnapshot(data.detections);
+                        state.lastSnapshotTime = now;
+                    }
                 }
             }
         } catch (e) {
