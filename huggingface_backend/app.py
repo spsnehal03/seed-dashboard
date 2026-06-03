@@ -151,17 +151,40 @@ async def detect(
         enhanced_frame = cv2.convertScaleAbs(resized_frame, alpha=1.3, beta=-20)
         
         rgb_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_BGR2RGB)
-        tensor = F.to_tensor(rgb_frame).to(device)
+        # --- TEST-TIME AUGMENTATION (TTA) ---
+        # The AI is blind to vertical Papaya seeds due to rotational bias in its training.
+        # We bypass this by passing BOTH the normal image AND a 90-degree rotated image 
+        # to the AI simultaneously.
+        tensor1 = F.to_tensor(rgb_frame).to(device)
+        
+        rotated_frame = cv2.rotate(rgb_frame, cv2.ROTATE_90_CLOCKWISE)
+        tensor2 = F.to_tensor(rotated_frame).to(device)
         
         with torch.no_grad():
-            prediction = rcnn_model([tensor])[0]
+            preds = rcnn_model([tensor1, tensor2])
+            pred1, pred2 = preds[0], preds[1]
             
-        boxes = prediction["boxes"]
-        labels = prediction["labels"]
-        scores = prediction["scores"]
+        boxes1, labels1, scores1 = pred1["boxes"], pred1["labels"], pred1["scores"]
+        boxes2, labels2, scores2 = pred2["boxes"], pred2["labels"], pred2["scores"]
         
-        # Filter by high confidence to prevent false detections
-        # Lowered to 0.60 so weaker Papaya detections aren't deleted before the Adulteration Bias can boost them
+        # Rotate boxes2 back to the original orientation
+        # 90-deg clockwise inverse mapping: x_orig = y_rot, y_orig = inf_h - x_rot
+        if len(boxes2) > 0:
+            x1_rot, y1_rot, x2_rot, y2_rot = boxes2[:, 0], boxes2[:, 1], boxes2[:, 2], boxes2[:, 3]
+            x1_orig = y1_rot
+            y1_orig = inf_h - x2_rot
+            x2_orig = y2_rot
+            y2_orig = inf_h - x1_rot
+            boxes2_orig = torch.stack([x1_orig, y1_orig, x2_orig, y2_orig], dim=1)
+        else:
+            boxes2_orig = boxes2
+            
+        # Combine predictions from both orientations
+        boxes = torch.cat((boxes1, boxes2_orig))
+        labels = torch.cat((labels1, labels2))
+        scores = torch.cat((scores1, scores2))
+        
+        # Filter by high confidence
         confidence_threshold = 0.60
         nms_threshold = 0.30
         
@@ -172,8 +195,8 @@ async def detect(
         
         if len(boxes) > 0:
             # --- ADULTERATION BIAS ---
-            # Boost Papaya (label=2) scores so NMS prioritizes it over Pepper
-            # if the model is confused and predicts both for the same seed.
+            # If the normal image says Pepper but the rotated image says Papaya,
+            # this boost guarantees the Papaya prediction wins during NMS!
             papaya_mask = (labels == 2)
             scores[papaya_mask] += 0.20
             
@@ -182,11 +205,11 @@ async def detect(
             labels = labels[keep_idx]
             scores = scores[keep_idx]
             
-            # Restore original scores so they don't exceed 1.00 in the UI
+            # Restore original scores
             scores[labels == 2] -= 0.20
             scores = torch.clamp(scores, 0.0, 1.0)
             
-            # Scale boxes back from inference resolution to the original frame's resolution
+            # Scale boxes back from inference resolution to original frame's resolution
             scale_x = orig_w / inf_w
             scale_y = orig_h / inf_h
             boxes[:, 0] *= scale_x
