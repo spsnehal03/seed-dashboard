@@ -205,6 +205,20 @@ async def detect(
             if area < 800:  
                 continue
                 
+            # --- STRICT OVAL SHAPE HEURISTIC ---
+            # The AI model suffers from rotational bias and misclassifies vertical/diagonal Papaya seeds.
+            # We strictly measure the bounding box Aspect Ratio.
+            # If AR >= 1.20, it is mathematically impossible to be a spherical Black Pepper, so it MUST be a Papaya.
+            # If AR <= 1.05, it is almost perfectly circular, making it highly likely to be Black Pepper.
+            if box_w > 0 and box_h > 0:
+                aspect_ratio = max(box_w, box_h) / float(min(box_w, box_h))
+                if aspect_ratio >= 1.20:
+                    label = 2  # Strict Override: Force to Papaya
+                    score = max(float(score), 0.90)
+                elif aspect_ratio <= 1.05:
+                    label = 1  # Strict Override: Force to Black Pepper
+                    score = max(float(score), 0.90)
+                    
             class_id = int(label)
             class_name = rcnn_classes.get(class_id, "unknown")
             
