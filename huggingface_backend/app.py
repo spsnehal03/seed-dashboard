@@ -197,12 +197,6 @@ async def detect(
         for box, label, score in zip(boxes, labels, scores):
             x1, y1, x2, y2 = map(int, box.tolist())
             
-            # --- WATERMARK FILTER ---
-            # Iriun webcam puts a watermark in the bottom-left corner.
-            # If a detection is in the bottom-left 20% width and bottom 20% height, ignore it.
-            if x1 < (orig_w * 0.20) and y2 > (orig_h * 0.80):
-                continue
-                
             box_w = x2 - x1
             box_h = y2 - y1
             
